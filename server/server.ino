@@ -13,7 +13,6 @@
 #include "Chewy_Regular_45.h"
 #include <time.h>
 
-HTTPClient http;
 
 #define ONBOARD_LED 2
 
@@ -89,21 +88,21 @@ void error() {
 
 int show_waiting_shift= 0;
 void show_waiting(int clr= 0) {
-  int x= SCREEN_WIDTH -13;
-  int y= SCREEN_HEIGHT -13;
+  int x= SCREEN_WIDTH -10;
+  int y= SCREEN_HEIGHT -10;
 
   int radius= 10;
 
-  display.fillCircle(x, y, radius+3, BLACK);
+  display.fillCircle(x, y, radius, BLACK);
   if(clr){
     show_waiting_shift=0;
     return;
   }
 
-  for(int r=radius+show_waiting_shift; r>0; r-=3){
+  for(int r=radius-show_waiting_shift; r>0; r-=5){
     display.drawCircle(x, y, r, WHITE);
   }
-  show_waiting_shift = ++show_waiting_shift % 3;
+  show_waiting_shift = ++show_waiting_shift % 5;
   
   display.display();
 }
