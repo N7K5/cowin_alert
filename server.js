@@ -7,3 +7,5 @@ const app= express();
 app.get("/", (req, res) =>{
     req.send("Well, working.......");
 })
+
+app.listen(PORT, () => console.log("listening to port"));
