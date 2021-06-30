@@ -11,7 +11,11 @@
 #include <Fonts/FreeSans24pt7b.h>
 #include "Lato_Heavy_26.h"
 #include "Chewy_Regular_45.h"
+#include "Arduino_JSON.h"
 #include <time.h>
+
+
+#define CHECK_IN_EVERY_SECS 180
 
 
 #define ONBOARD_LED 2
@@ -32,8 +36,17 @@
 #define ssid "Jui er net"
 #define password "passwordbolbonaa"
 
+String base_url= "https://cdn-api.co-vin.in/api/v2/appointment/sessions/public/calendarByDistrict";
+#define APD_DIST_CODE 710
+#define COOCH_DIST_CODE 783
 
 
+
+bool VACCINE_AVAILABLE= false;
+
+/*****************************
+********* For sound **********
+******************************/
 int freq = 2000;
 int channel = 0;
 int resolution = 8;
@@ -59,7 +72,44 @@ time_t rawtime;
 struct tm *ti;
 
 
+void Time() {
+  timeClient.update();
 
+  time_t rawtime = timeClient.getEpochTime();
+  ti = localtime (&rawtime);
+  year= ti->tm_year + 1900;
+  month= ti->tm_mon+1;
+  date= ti->tm_mday;
+  Serial.print(date);
+  Serial.print("  ");
+  Serial.print(month);
+  Serial.print("  ");
+  Serial.print(year);
+  Serial.print("  \n");
+}
+
+String get_time() {
+  timeClient.update();
+  hours= timeClient.getHours()>12? timeClient.getHours()-12 : timeClient.getHours();
+  minutes= timeClient.getMinutes();
+  seconds= timeClient.getSeconds();
+  ampm[0]= timeClient.getHours()>12? 'p' : 'a';
+  return String(hours)+":"+String(minutes)+":"+String(seconds)+" "+String(ampm);
+}
+
+String get_date() {
+  timeClient.update();
+  time_t rawtime = timeClient.getEpochTime();
+  ti = localtime (&rawtime);
+  year= ti->tm_year + 1900;
+  month= ti->tm_mon+1;
+  date= ti->tm_mday;
+  return String(date)+"-"+String(month)+"-"+String(year);
+}
+
+String make_url(String dist_code) {
+  return base_url+"?district_id="+dist_code+"&date="+get_date();
+}
 
 
 /*******************************************
@@ -137,13 +187,129 @@ void beep_weird() {
 void beep_check() {
   for(int i=100; i<4000; i+=200) {
     ledcWriteTone(channel, i);
-    delay(50);
+    delay(25);
   }
   for(int i=4000; i>100; i-=250) {
     ledcWriteTone(channel, i);
-    delay(30);
+    delay(15);
   }
   ledcWriteTone(channel, 0);
+}
+
+void contiuous_beep() {
+  while(true) {
+    display.fillRect(0, SCREEN_HEIGHT-15, SCREEN_WIDTH, 15, BLACK);
+    display.fillRect(0, SCREEN_HEIGHT-15, SCREEN_WIDTH/2+2, 15, WHITE);
+    display.display();
+    for(int i=100; i<1000; i+=100) {
+      ledcWriteTone(channel, i);
+      delay(50);
+    }
+    display.fillRect(0, SCREEN_HEIGHT-15, SCREEN_WIDTH, 15, BLACK);
+    display.fillRect(SCREEN_WIDTH/2-2, SCREEN_HEIGHT-15, SCREEN_WIDTH/2+2, 15, WHITE);
+    display.display();
+    for(int i=3000; i>2000; i-=100) {
+      ledcWriteTone(channel, i);
+      delay(50);
+    }
+  }
+}
+
+
+
+
+
+void check_vaccin_availablity(int dist_code) {
+  if ((WiFi.status() == WL_CONNECTED)) {
+ 
+    HTTPClient http;
+
+    String url= make_url(String(dist_code));
+
+    http.begin(url);
+    int httpCode = http.GET();
+ 
+    if (httpCode > 0) { //Check for the returning code
+ 
+        String payload = http.getString();
+//        Serial.println(httpCode);/
+//        Serial.println(payload);/
+
+          if(httpCode == 200) {
+            JSONVar dat = JSON.parse(payload);
+
+            if (JSON.typeof(dat) == "undefined") {
+              Serial.println("Parsing data Failed");
+              return;
+            }
+          
+            if(!dat.hasOwnProperty("centers")){
+              Serial.println("No centers field");
+              return;
+            }
+
+            JSONVar centers_arr= dat["centers"];
+
+            for(int center_id=0; center_id<centers_arr.length(); center_id++) {
+              JSONVar center= centers_arr[center_id];
+              
+
+              if(!center.hasOwnProperty("sessions")) {
+                Serial.println("No Sessions field");
+                continue;
+              }
+
+              JSONVar sessions_arr= center["sessions"];
+
+              for(int session_id=0; session_id<sessions_arr.length(); session_id++) {
+
+                 JSONVar session= sessions_arr[session_id];
+
+                 if(!session.hasOwnProperty("min_age_limit")) {
+                  Serial.println("No min_age_limit field");
+                  continue;
+                }
+
+                if(!session.hasOwnProperty("available_capacity_dose1")) {
+                  Serial.println("No available_capacity_dose1 field");
+                  continue;
+                }
+
+                int available_capacity_dose1= session["available_capacity_dose1"];
+                int min_age_limit= session["min_age_limit"];
+
+//                Serial.println(available_capacity_dose1);
+//                Serial.println(min_age_limit);
+
+                if(available_capacity_dose1 > 0 && min_age_limit <26) {
+                  VACCINE_AVAILABLE= true;
+                }
+                
+              }
+              
+            }
+            
+          }
+          else {
+            Serial.println("Got non-200 code...");
+          }
+
+      }
+ 
+    else {
+      Serial.println("Error on HTTP request");
+    }
+ 
+    http.end();
+  }
+}
+
+
+void show_progressbar(int percent, int x= 0, int y= SCREEN_HEIGHT-10, int width= SCREEN_WIDTH) {
+  display.fillRect(x, y+2, width, 4, BLACK);
+  display.drawRect(x, y, width, 8, WHITE);
+  display.fillRect(x+2, y+2, (width-4)*percent/100, 4, WHITE);
+  display.display();
 }
 
 
@@ -221,41 +387,52 @@ void setup() {
     delay(50);
   }
   show_waiting(1);
+
   
 }
 
 void loop() {
+//  show_waiting(1);
 
-  show_waiting(1);
+//  display.fillRect(0,0,SCREEN_WIDTH, 10, WHITE);
+//  display.clearDisplay();
+  display.fillRect(0,0,SCREEN_WIDTH, SCREEN_HEIGHT-10, BLACK);
+  display.drawRect(0, 10, SCREEN_WIDTH, 2, WHITE);
+  display.setCursor(5,0);
+  display.print(get_time());
+  display.display();
+
+  display.setCursor(0, SCREEN_HEIGHT/4);
   
-  if ((WiFi.status() == WL_CONNECTED)) { //Check the current connection status
- 
-    HTTPClient http;
- 
-    http.begin("http://jsonplaceholder.typicode.com/comments?id=10"); //Specify the URL
-    int httpCode = http.GET();                                        //Make the request
- 
-    if (httpCode > 0) { //Check for the returning code
- 
-        String payload = http.getString();
-        Serial.println(httpCode);
-        Serial.println(payload);
-      }
- 
-    else {
-      Serial.println("Error on HTTP request");
-    }
- 
-    http.end(); //Free the resources
+  check_vaccin_availablity(APD_DIST_CODE);
+  if(VACCINE_AVAILABLE) {
+    display.println("Vaccine found APD");
+    display.display();
+    contiuous_beep();
   }
-
-
-  beep_weird();
-  
- 
-  for(int i=0; i<30; i++) {
-    show_waiting();
-    delay(50);
+  else {
+    display.println("NO Vaccine APD");
+    display.display();
   }
   
+  check_vaccin_availablity(COOCH_DIST_CODE);
+  if(VACCINE_AVAILABLE) {
+    display.println("Vaccine found COOCH");
+    display.display();
+    contiuous_beep();
+  }
+  else {
+    display.println("NO Vaccine COOCH");
+    display.display();
+  }
+  
+  
+  for(int i=0; i<=100; i+=10) {
+    show_progressbar(i);
+    delay(10);
+  }
+  for(int i=100; i>0; i--) {
+    show_progressbar(i);
+    delay(CHECK_IN_EVERY_SECS*10);
+  }
 }
