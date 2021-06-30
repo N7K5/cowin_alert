@@ -34,6 +34,10 @@
 
 
 
+int freq = 2000;
+int channel = 0;
+int resolution = 8;
+
 
 
 
@@ -96,6 +100,7 @@ void show_waiting(int clr= 0) {
   display.fillCircle(x, y, radius, BLACK);
   if(clr){
     show_waiting_shift=0;
+    display.display();
     return;
   }
 
@@ -105,6 +110,40 @@ void show_waiting(int clr= 0) {
   show_waiting_shift = ++show_waiting_shift % 5;
   
   display.display();
+}
+
+void beep_weird() {
+  ledcWriteTone(channel, 2000);
+  delay(250);
+  ledcWriteTone(channel, 1000);
+  delay(200);
+  ledcWriteTone(channel, 3000);
+  delay(250);
+  ledcWriteTone(channel, 700);
+  delay(150);
+  ledcWriteTone(channel, 2500);
+  delay(150);
+  ledcWriteTone(channel, 1500);
+  delay(250);
+  ledcWriteTone(channel, 400);
+  delay(150);
+  ledcWriteTone(channel, 1500);
+  delay(200);
+
+  ledcWriteTone(channel, 0);
+  
+}
+
+void beep_check() {
+  for(int i=100; i<4000; i+=200) {
+    ledcWriteTone(channel, i);
+    delay(50);
+  }
+  for(int i=4000; i>100; i-=250) {
+    ledcWriteTone(channel, i);
+    delay(30);
+  }
+  ledcWriteTone(channel, 0);
 }
 
 
@@ -163,6 +202,16 @@ void setup() {
   display.display();
 
 
+  
+  /*******************************************
+  ********* Setup fTone PWM ******************
+  *******************************************/
+
+  ledcSetup(channel, freq, resolution);
+  ledcAttachPin(12, channel);
+
+  beep_check();
+
 
   /******************************************
   ********** END of setup *******************
@@ -176,6 +225,9 @@ void setup() {
 }
 
 void loop() {
+
+  show_waiting(1);
+  
   if ((WiFi.status() == WL_CONNECTED)) { //Check the current connection status
  
     HTTPClient http;
@@ -196,10 +248,14 @@ void loop() {
  
     http.end(); //Free the resources
   }
+
+
+  beep_weird();
+  
  
   for(int i=0; i<30; i++) {
     show_waiting();
     delay(50);
   }
-  show_waiting(1);
+  
 }
