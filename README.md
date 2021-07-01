@@ -10,4 +10,4 @@ if there is vaccine available, it starts buzzing and beeping.....
 
 ![picture 1](./ex/ex1.jpg)
 
-![GitHub Logo](./ex/ex1.jpg)
+![GitHub Logo](./ex/ex2.jpg)
