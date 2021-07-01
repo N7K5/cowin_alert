@@ -7,3 +7,7 @@ Initial thoughts were to use a server to simplify the response, but cowin has bl
 so, the ino sketch does all the work itself..
 it connects to wifi,fires an NTP client, checks for update regarding vaccine in every 3 mins
 if there is vaccine available, it starts buzzing and beeping.....
+
+![picture 1](./ex/ex1.jpg)
+
+![GitHub Logo](./ex/ex1.jpg)
